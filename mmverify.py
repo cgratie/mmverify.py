@@ -21,7 +21,8 @@ import itertools
 import collections
 import os.path
 
-verbosity = 1
+proofs = {}  # labeled proofs parsed during verification
+verbosity = 0  # no verbosity from the original verifier
 
 class MMError(Exception): pass
 class MMKeyError(MMError, KeyError): pass
@@ -346,10 +347,70 @@ class MM:
             vprint(12, 'st:', stack)
         if len(stack) != 1: raise MMError('stack has >1 entry at end')
         if stack[0] != stat: raise MMError("assertion proved doesn't match")
+        self.convert(stat_label, stat, proof)
 
     def dump(self): print(self.labels)
+
+    def convert(self, label, stmt, proof):
+        print(label)  # only used for visual progress
+        stack = []
+        for step_label in proof:
+            step = self.labels[step_label]
+            kind, content = step
+            if kind == "$e":
+                stack.append(step_label)
+            elif kind in {"$a", "$p"}:
+                if content[-1][0] != "|-": continue
+                nhyps = len(content[-2])
+                if nhyps:
+                    stack = stack[:-nhyps] + [(step_label, *stack[-nhyps:])]
+                else:
+                    stack = stack + [(step_label,)]
+        if stack:
+            assert len(stack) == 1, (label, stmt, proof)
+            proofs[label] = stack[0]
+        else:
+            proofs[label] = None
+
 
 if __name__ == '__main__':
     mm = MM()
     mm.read(toks(sys.stdin))
     #mm.dump()
+
+    named_hyps = {}
+    for key, val in mm.labels.items():
+        kind, content = val
+        if kind == "$f":
+            assert content[0] in {"wff", "setvar", "class"}
+            data = dict(
+                k=kind, 
+                e=" ".join(content),  # expression
+            )
+        elif kind == "$e":
+            assert content[0] == "|-"
+            named_hyps[key] = " ".join(content)
+            continue
+        elif kind == "$a":
+            assert key not in proofs
+            named_hyps[key] = " ".join(content[-1])
+            data = dict(
+                k=kind,
+                d=list(content[0]),  # distinct variables
+                s=list(content[1]),  # syntax hints
+                r=named_hyps,  # rule
+            )
+            named_hyps = {}
+        else:
+            assert kind == "$p"
+            assert key in proofs
+            named_hyps[key] = " ".join(content[-1])
+            data = dict(
+                k=kind,
+                d=list(content[0]),  # distinct variables
+                s=list(content[1]),  # syntax hints
+                r=named_hyps,  # rule
+                p=proofs[key]  # proof
+            )
+            named_hyps = {}
+        print((key, data), file=sys.stderr)
