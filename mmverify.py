@@ -20,6 +20,7 @@ import sys
 import itertools
 import collections
 import os.path
+import os
 
 proofs = {}  # labeled proofs parsed during verification
 verbosity = 0  # no verbosity from the original verifier
@@ -378,39 +379,42 @@ if __name__ == '__main__':
     mm.read(toks(sys.stdin))
     #mm.dump()
 
-    named_hyps = {}
+    # NOTE run as: mmverify.py < input.mm 2> statements.txt 3> syntax.txt
+    fd_statements = sys.stderr
+    fd_syntax = os.fdopen(3, "wt")
+    hyps = {}  # named hypotheses
     for key, val in mm.labels.items():
         kind, content = val
         if kind == "$f":
             assert content[0] in {"wff", "setvar", "class"}
-            data = dict(
-                k=kind, 
-                e=" ".join(content),  # expression
-            )
+            vars = []  # variable sorts
+            conc = " ".join(content)  # conclusion
+            data = dict(v=vars, c=conc)
+            print((kind, key, data), file=fd_syntax)
         elif kind == "$e":
             assert content[0] == "|-"
-            named_hyps[key] = " ".join(content)
-            continue
+            hyps[key] = " ".join(content)
         elif kind == "$a":
             assert key not in proofs
-            named_hyps[key] = " ".join(content[-1])
-            data = dict(
-                k=kind,
-                d=list(content[0]),  # distinct variables
-                s=list(content[1]),  # syntax hints
-                r=named_hyps,  # rule
-            )
-            named_hyps = {}
+            vars = list(content[1])  # variable sorts
+            dist = list(content[0])  # distinct variable pairs
+            conc = " ".join(content[-1])  # conclusion
+            if content[-1][0] == "|-":
+                data = dict(v=vars, d=dist, h=hyps, c=conc)
+                print((kind, key, data), file=fd_statements)
+                hyps = {}
+            else:
+                assert not dist
+                assert not hyps
+                data = dict(v=vars, c=conc)
+                print((kind, key, data), file=fd_syntax)
         else:
             assert kind == "$p"
             assert key in proofs
-            named_hyps[key] = " ".join(content[-1])
-            data = dict(
-                k=kind,
-                d=list(content[0]),  # distinct variables
-                s=list(content[1]),  # syntax hints
-                r=named_hyps,  # rule
-                p=proofs[key]  # proof
-            )
-            named_hyps = {}
-        print((key, data), file=sys.stderr)
+            vars = list(content[1])  # variable sorts
+            dist = list(content[0])  # distinct variable pairs
+            conc = " ".join(content[-1])  # conclusion
+            proof = proofs[key]  # proof
+            data = dict(v=vars, d=dist, h=hyps, c=conc, p=proof)
+            print((kind, key, data), file=fd_statements)
+            hyps = {}
