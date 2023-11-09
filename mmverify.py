@@ -388,17 +388,17 @@ if __name__ == '__main__':
         if kind == "$f":
             assert content[0] in {"wff", "setvar", "class"}
             vars = []  # variable sorts
-            conc = " ".join(content)  # conclusion
-            data = dict(v=vars, c=conc)
+            conc = " ".join(content[1:])  # conclusion
+            data = dict(v=vars, c=(content[0], conc))
             print((kind, key, data), file=fd_syntax)
         elif kind == "$e":
             assert content[0] == "|-"
-            hyps[key] = " ".join(content)
+            hyps[key] = " ".join(content[1:])
         elif kind == "$a":
             assert key not in proofs
             vars = list(content[1])  # variable sorts
             dist = list(content[0])  # distinct variable pairs
-            conc = " ".join(content[-1])  # conclusion
+            conc = " ".join(content[-1][1:])  # conclusion
             if content[-1][0] == "|-":
                 data = dict(v=vars, d=dist, h=hyps, c=conc)
                 print((kind, key, data), file=fd_statements)
@@ -406,14 +406,14 @@ if __name__ == '__main__':
             else:
                 assert not dist
                 assert not hyps
-                data = dict(v=vars, c=conc)
+                data = dict(v=vars, c=(content[-1][0], conc))
                 print((kind, key, data), file=fd_syntax)
         else:
             assert kind == "$p"
             assert key in proofs
             vars = list(content[1])  # variable sorts
             dist = list(content[0])  # distinct variable pairs
-            conc = " ".join(content[-1])  # conclusion
+            conc = " ".join(content[-1][1:])  # conclusion
             proof = proofs[key]  # proof
             data = dict(v=vars, d=dist, h=hyps, c=conc, p=proof)
             print((kind, key, data), file=fd_statements)
