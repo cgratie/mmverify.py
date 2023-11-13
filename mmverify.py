@@ -382,7 +382,7 @@ if __name__ == '__main__':
     # NOTE run as: mmverify.py < input.mm 2> statements.txt 3> syntax.txt
     fd_statements = sys.stderr
     fd_syntax = os.fdopen(3, "wt")
-    hyps = {}  # named hypotheses
+    hyp_names = {}  # names of hypotheses by content
     for key, val in mm.labels.items():
         kind, content = val
         if kind == "$f":
@@ -393,28 +393,32 @@ if __name__ == '__main__':
             print((kind, key, data), file=fd_syntax)
         elif kind == "$e":
             assert content[0] == "|-"
-            hyps[key] = " ".join(content[1:])
+            hyp = " ".join(content[1:])
+            hyp_names[hyp] = key
         elif kind == "$a":
             assert key not in proofs
             vars = list(content[1])  # variable sorts
             dist = list(content[0])  # distinct variable pairs
             conc = " ".join(content[-1][1:])  # conclusion
             if content[-1][0] == "|-":
+                str_hyps = [" ".join(hyp[1:]) for hyp in content[-2]]
+                hyps = {hyp_names[str_hyp]: str_hyp for str_hyp in str_hyps}
                 data = dict(v=vars, d=dist, h=hyps, c=conc)
                 print((kind, key, data), file=fd_statements)
-                hyps = {}
             else:
                 assert not dist
-                assert not hyps
                 data = dict(v=vars, c=(content[-1][0], conc))
                 print((kind, key, data), file=fd_syntax)
         else:
             assert kind == "$p"
+            # ignore syntax proofs
+            if content[-1][0] != "|-": continue
             assert key in proofs
             vars = list(content[1])  # variable sorts
             dist = list(content[0])  # distinct variable pairs
             conc = " ".join(content[-1][1:])  # conclusion
             proof = proofs[key]  # proof
+            str_hyps = [" ".join(hyp[1:]) for hyp in content[-2]]
+            hyps = {hyp_names[str_hyp]: str_hyp for str_hyp in str_hyps}
             data = dict(v=vars, d=dist, h=hyps, c=conc, p=proof)
             print((kind, key, data), file=fd_statements)
-            hyps = {}
